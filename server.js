@@ -39,9 +39,12 @@ const urlSchema = new Schema({
 
 const UrlModel = mongoose.model('urlModel', urlSchema);
 
-const fixUrl = (url) => {
+const urlCleaner = (url) => {
   const reg = /^w{2}/i;
-  let arr = url.split('//');
+  let arr = url.split('/');
+  while (arr.length - 1 > 2) {
+   arr.pop();
+  }
   if (reg.test(arr[arr.length - 1])) {
     arr = arr[arr.length - 1].split('www.');
     return arr[arr.length - 1];
@@ -59,9 +62,14 @@ app.get('/test', (req, res) => {
 // post new url
 app.post('/api/shorturl/new', (req, res) => {
 
-  const postedURL = req.body.url;
+  const postedUrl = req.body.url;
+  const httpReg = /http[s]:\/\//i;
+  
+  if(!httpReg.test(postedUrl)){
+    res.json({ error: "invalid url" });
+  };
 
-  const cleanUrl = fixUrl(postedURL);
+  const cleanUrl = urlCleaner(postedUrl);
   
   // check and save
   dns.resolveAny(cleanUrl, (err, url) => {
@@ -69,23 +77,25 @@ app.post('/api/shorturl/new', (req, res) => {
      console.log(err, url);
       res.json({ error: "invalid URL" });
     } else {
-      const urlObj = new UrlModel({ 'original_url': 'https://www.' + cleanUrl });
+      const urlObj = new UrlModel({ 'original_url': postedUrl });
       urlObj.save((err, payload) => {
         if(err) { 
-          res.json({ error: "invalid URL" });
+          res.json({ error: "invalid url" });
         } else {
-          res.json({ 'original_url': 'https://www.' + cleanUrl, 'short_url': payload._id.toString() });
+          res.json({ original_url: postedUrl, short_url: payload._id });
         }
       });
     }
   });
 });
 
+// redirect
 app.get('/api/shorturl/:urlid', (req,res) => {
   const urlId = req.params.urlid;
+  console.log(urlId);
   const fullUrl = UrlModel.findById(urlId, (err, payload) => {
     if(err) {
-      console.log('Error: Check ID' + urlId );
+      console.log('Error: Check ID ' + urlId );
     } else {
       res.redirect(payload['original_url']);
     } 
